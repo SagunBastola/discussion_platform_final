@@ -349,31 +349,38 @@
           list.innerHTML = "<em>Error loading comments.</em>";
         }
       }
-
+      // 2. POST A NEW COMMENT
       async function createComment(postId) {
         const input = document.getElementById(`new-comment-${postId}`);
-        const content = input.value;
-        if (!content) return;
+        const content = input.value.trim();
+
+        if (!content) return alert("Please type a comment first.");
+        if (!token) return alert("You must be logged in to comment!");
 
         try {
           const res = await fetch(`${API_BASE}/comments/`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
+              Authorization: `Bearer ${token}`, // Passes the required security token
             },
-            body: JSON.stringify({ content: content, post_id: postId }),
+            body: JSON.stringify({
+              content: content,
+              post_id: parseInt(postId), // Guarantees an integer is sent to match Pydantic
+            }),
           });
 
-          if (res.status === 401) {
-            alert("Session expired. Please log in again.");
-            return document.getElementById("logout-btn").click();
+          if (!res.ok) {
+            const errorData = await res.json();
+            alert(`Error: ${errorData.detail || "Failed to submit comment"}`);
+            return;
           }
 
-          input.value = "";
-          loadComments(postId); // Refresh comment list for this post
+          input.value = ""; // Clear input box on success
+          loadComments(postId); // Refresh the list automatically to show the new comment!
         } catch (err) {
-          alert("Error posting comment");
+          alert("Network error: Could not reach the server.");
+          console.error(err);
         }
       }
     </script>

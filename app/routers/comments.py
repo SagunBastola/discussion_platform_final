@@ -27,7 +27,8 @@ def create_comment(
     new_comment = Comment(
         content=comment_data.content,
         post_id=comment_data.post_id,
-        owner_id=current_user.id
+        owner_id=current_user.id,
+        author=current_user
     )
     
     db.add(new_comment)

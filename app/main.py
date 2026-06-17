@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers import comments
 from .database import engine, Base
 from .routers import auth, posts
-
+from .routers import auth, posts, comments
 # Create tables
 Base.metadata.create_all(bind=engine)
 
