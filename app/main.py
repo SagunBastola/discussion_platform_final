@@ -10,10 +10,10 @@ from .routers import auth, posts, comments
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Anonymous Reddit API")
-app.add_middleware(
+app.add_middleware( 
     CORSMiddleware,
     allow_origins=["*"],  # Allows any origin, swap to your frontend URL later if desired
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
