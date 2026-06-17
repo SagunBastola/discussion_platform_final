@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Anonymous Reddit</title>
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+        background-color: #dae0e6;
+        margin: 0;
+        padding: 0;
+      }
+      header {
+        background-color: #ff4500;
+        color: white;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 1.5rem;
+      }
+      .container {
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 0 15px;
+      }
+
+      .card {
+        background: white;
+        padding: 20px;
+        border-radius: 5px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        margin-bottom: 15px;
+      }
+      input,
+      textarea,
+      button {
+        padding: 10px;
+        margin-top: 5px;
+        margin-bottom: 15px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      button {
+        background-color: #0079d3;
+        color: white;
+        font-weight: bold;
+        border: none;
+        cursor: pointer;
+        width: auto;
+        padding: 10px 20px;
+      }
+      button:hover {
+        background-color: #005a9e;
+      }
+      button.secondary {
+        background-color: transparent;
+        color: #0079d3;
+        padding: 0;
+        margin: 0;
+      }
+      button.secondary:hover {
+        text-decoration: underline;
+        background: none;
+      }
+
+      .post-title {
+        font-size: 1.2rem;
+        font-weight: bold;
+        margin: 0 0 10px 0;
+      }
+      .post-meta {
+        font-size: 0.8rem;
+        color: #787c7e;
+        margin-bottom: 15px;
+      }
+      .comments-section {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #eee;
+      }
+      .comment {
+        background: #f6f7f8;
+        padding: 10px;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        font-size: 0.9rem;
+      }
+
+      #auth-section,
+      #app-section {
+        display: none;
+      }
+      .flex-row {
+        display: flex;
+        gap: 10px;
+      }
+      .error {
+        color: red;
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Anonymous Reddit</h1>
+      <div id="user-controls" style="display: none">
+        <button id="logout-btn" style="background-color: #fff; color: #ff4500">
+          Logout
+        </button>
+      </div>
+    </header>
+
+    <div class="container">
+      <div id="auth-section" class="card">
+        <h2>Login or Register</h2>
+        <div id="auth-error" class="error"></div>
+        <input type="text" id="username" placeholder="Username" required />
+        <input type="password" id="password" placeholder="Password" required />
+        <div class="flex-row">
+          <button onclick="login()">Login</button>
+          <button onclick="register()" style="background-color: #28a745">
+            Register
+          </button>
+        </div>
+      </div>
+
+      <div id="app-section">
+        <div class="card">
+          <h3>Create a Post</h3>
+          <input type="text" id="post-title" placeholder="Post Title" />
+          <textarea
+            id="post-content"
+            rows="3"
+            placeholder="What are your thoughts?"
+          ></textarea>
+          <button onclick="createPost()">Post</button>
+        </div>
+
+        <div id="feed"></div>
+      </div>
+    </div>
+
+    <script>
+      const API_BASE = "http://localhost:8000";
+      let token = localStorage.getItem("token");
+
+      // Initialization
+      window.onload = () => {
+        if (token) {
+          showApp();
+        } else {
+          showAuth();
+        }
+      };
+
+      function showAuth() {
+        document.getElementById("auth-section").style.display = "block";
+        document.getElementById("app-section").style.display = "none";
+        document.getElementById("user-controls").style.display = "none";
+      }
+
+      function showApp() {
+        document.getElementById("auth-section").style.display = "none";
+        document.getElementById("app-section").style.display = "block";
+        document.getElementById("user-controls").style.display = "block";
+        loadPosts();
+      }
+
+      function showError(msg) {
+        const errEl = document.getElementById("auth-error");
+        errEl.innerText = msg;
+        errEl.style.display = "block";
+      }
+
+      document.getElementById("logout-btn").addEventListener("click", () => {
+        localStorage.removeItem("token");
+        token = null;
+        showAuth();
+      });
+
+      // --- AUTH API ---
+
+      async function register() {
+        const u = document.getElementById("username").value;
+        const p = document.getElementById("password").value;
+
+        try {
+          const res = await fetch(`${API_BASE}/auth/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: u, password: p }),
+          });
+          if (!res.ok) throw new Error(await res.text());
+          alert("Registration successful! You can now log in.");
+        } catch (err) {
+          showError("Registration failed: " + err.message);
+        }
+      }
+
+      async function login() {
+        const u = document.getElementById("username").value;
+        const p = document.getElementById("password").value;
+
+        // FastAPI OAuth2PasswordRequestForm expects x-www-form-urlencoded
+        const params = new URLSearchParams();
+        params.append("username", u);
+        params.append("password", p);
+
+        try {
+          const res = await fetch(`${API_BASE}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: params,
+          });
+          if (!res.ok) throw new Error("Invalid credentials");
+          const data = await res.json();
+          token = data.access_token;
+          localStorage.setItem("token", token);
+          document.getElementById("auth-error").style.display = "none";
+          showApp();
+        } catch (err) {
+          showError("Login failed: " + err.message);
+        }
+      }
+
+      // --- POSTS API ---
+
+      async function loadPosts() {
+        const feed = document.getElementById("feed");
+        feed.innerHTML = "Loading posts...";
+
+        try {
+          const res = await fetch(`${API_BASE}/posts/`);
+
+          // If the server returns a 400 or 500 error, catch it here
+          if (!res.ok) {
+            const errData = await res.json();
+            feed.innerHTML = `<div style="color:red;">Backend Error: ${errData.error_message || res.statusText}</div>`;
+            return;
+          }
+
+          const posts = await res.json();
+          feed.innerHTML = "";
+
+          if (posts.length === 0) {
+            feed.innerHTML =
+              "<em>No posts found. Create the first one above!</em>";
+            return;
+          }
+
+          posts.forEach((post) => {
+            const date = new Date(post.created_at).toLocaleString();
+            const card = document.createElement("div");
+            card.className = "card";
+            card.innerHTML = `
+                <h2 class="post-title">${post.title}</h2>
+                <div class="post-meta">Posted at ${date}</div>
+                <p>${post.content}</p>
+                <button class="secondary" onclick="toggleComments(${post.id})">💬 Comments</button>
+                <div id="comments-${post.id}" class="comments-section" style="display:none;">
+                    <div id="comment-list-${post.id}"></div>
+                    <div class="flex-row" style="margin-top: 10px;">
+                        <input type="text" id="new-comment-${post.id}" placeholder="Add a comment...">
+                        <button onclick="createComment(${post.id})" style="width: auto;">Reply</button>
+                    </div>
+                </div>
+            `;
+            feed.appendChild(card);
+          });
+        } catch (err) {
+          // This catches total connection failures (e.g. server is offline)
+          feed.innerHTML = `<div style="color:red;">Failed to connect to backend. Is Uvicorn running at ${API_BASE}?</div>`;
+          console.error(err);
+        }
+      }
+      async function createPost() {
+        const title = document.getElementById("post-title").value;
+        const content = document.getElementById("post-content").value;
+
+        if (!title || !content) return alert("Title and content required");
+
+        try {
+          const res = await fetch(`${API_BASE}/posts/`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ title, content }),
+          });
+
+          if (res.status === 401) {
+            alert("Session expired. Please log in again.");
+            return document.getElementById("logout-btn").click();
+          }
+
+          document.getElementById("post-title").value = "";
+          document.getElementById("post-content").value = "";
+          loadPosts(); // Refresh feed
+        } catch (err) {
+          alert("Error creating post");
+        }
+      }
+
+      // --- COMMENTS API ---
+
+      async function toggleComments(postId) {
+        const section = document.getElementById(`comments-${postId}`);
+        if (section.style.display === "none") {
+          section.style.display = "block";
+          loadComments(postId);
+        } else {
+          section.style.display = "none";
+        }
+      }
+
+      async function loadComments(postId) {
+        const list = document.getElementById(`comment-list-${postId}`);
+        list.innerHTML = "<em>Loading comments...</em>";
+
+        try {
+          const res = await fetch(`${API_BASE}/comments/post/${postId}`);
+          const comments = await res.json();
+
+          if (comments.length === 0) {
+            list.innerHTML = "<em>No comments yet.</em>";
+            return;
+          }
+
+          list.innerHTML = "";
+          comments.forEach((c) => {
+            const el = document.createElement("div");
+            el.className = "comment";
+            el.innerHTML = `<strong>${c.author.username}</strong>: ${c.content}`;
+            list.appendChild(el);
+          });
+        } catch (err) {
+          list.innerHTML = "<em>Error loading comments.</em>";
+        }
+      }
+
+      async function createComment(postId) {
+        const input = document.getElementById(`new-comment-${postId}`);
+        const content = input.value;
+        if (!content) return;
+
+        try {
+          const res = await fetch(`${API_BASE}/comments/`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ content: content, post_id: postId }),
+          });
+
+          if (res.status === 401) {
+            alert("Session expired. Please log in again.");
+            return document.getElementById("logout-btn").click();
+          }
+
+          input.value = "";
+          loadComments(postId); // Refresh comment list for this post
+        } catch (err) {
+          alert("Error posting comment");
+        }
+      }
+    </script>
+  </body>
+</html>
